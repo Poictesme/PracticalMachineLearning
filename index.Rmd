@@ -1,0 +1,106 @@
+---
+title: "Prediction Assignment Writeup"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Summary
+
+Six young health participants were asked to perform one set of ten repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: 
+
+* exactly according to the specification (Class A) 
+* throwing the elbows to the front (Class B)
+* lifting the dumbbell only halfway (Class C) 
+* lowering the dumbbell only halfway (Class D) 
+* throwing the hips to the front (Class E)
+
+Additional information on the data can be found at http://groupware.les.inf.puc-rio.br/har
+
+The goal of this assignment is to predict how well the participants did the activity in the testing data set, using the *classe* (Class) variable in the training set. 
+
+## Setup
+
+First we load the required libraries.
+
+```{r warning=FALSE, message=FALSE}
+library(caret)
+library(randomForest)
+```
+
+Then we set the seed for reproducibility.
+
+```{r}
+set.seed(777) # for reproducibility
+```
+
+## Data Cleaning
+
+Next we load the data.  Examining the data, we see that in addition to NA field values there are some division-by-zero error field values and some empty fields.  Using the *na.strings* parameter to *read.csv()* we are able to convert all these fields to NA values on read. 
+
+```{r}
+test.data<-read.csv("pml-testing.csv",na.strings=c("NA","#DIV/0!",""))
+train.data<-read.csv("pml-training.csv",na.strings=c("NA","#DIV/0!",""))
+```
+
+Next, we eliminate some extraneous data which are not relevant to prediction. These include the index (1st column, named X), the user identity, various time information columns and the window columns (i.e. the first 7 columns).
+
+
+```{r}
+train.clean<-train.data[,-(1:7)]
+test.clean<-test.data[,-(1:7)]
+```
+
+Next, we remove all columns that are filled with NAs.
+
+```{r}
+train.clean<-train.clean[,colSums(is.na(train.clean))==0]
+test.clean<-test.clean[,colSums(is.na(test.clean))==0]
+```
+
+## Partition for Cross-validation.
+
+Next we partition data to allow for cross-Validation.  The training set is split into a training data set (70%) and validation data set (30%).  The validation data set will be used to conduct cross-validation.
+
+```{r}
+inTrain <- createDataPartition(y=train.clean$classe,p=0.7,list=FALSE)
+training.set<-train.clean[inTrain,]
+validation.set<-train.clean[-inTrain,]
+```
+
+For the prediction model we pick the Random Forest model as it is a good, flexible model for prediction with very high accuracy, even when a large proportion of the data is missing.  The main disadvantages of the Random Forest approach is its complexity and computation resources, factors which are not as important given the relatively small size of our data.
+
+```{r}
+modRF=randomForest(classe~.,data=training.set,na.action=na.pass)
+print(modRF)
+```
+
+Next we conduct cross-validation by testing our model fit against our out of sample validation data set.
+
+```{r}
+validation.predict<-predict(modRF,validation.set,na.action=na.pass)
+confusion.matrix.rf<-confusionMatrix(validation.set$classe,validation.predict)
+print(confusion.matrix.rf)
+```
+
+The accuracy is seen to be extremely high at 0.9951.  We are satisfied with that level of accuracy.
+
+## Prediction on test data
+
+Now we apply our model to the actual testing set.
+
+```{r}
+test.predict<-predict(modRF,test.clean)
+print(test.predict)
+```
+
+The resulting predictions are applied to the *Course Project Prediction Quiz* with 100% success.
+
+
+
+
+
+
+
